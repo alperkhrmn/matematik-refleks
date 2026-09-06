@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <!-- Mobil uyumluluğun kalbi: Ekranı cihaz genişliğine kitler, yakınlaştırmayı engeller -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Matematik Refleks - Hardcore Mobil</title>
+    <style>
+        /* Dokunmatik ekranlarda seçme ve vurgulama engellemesi (Oyun hissini korumak için) */
+        * {
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #111; 
+            color: #fff; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh; /* Ekranı tam kapla */
+        }
+
+        #oyun-alani { 
+            width: 90%; 
+            max-width: 500px; /* Tablet veya PC için sınır */
+            padding: 25px 20px; 
+            background: #222; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9); 
+            border: 1px solid #333; 
+        }
+
+        #skor-kutusu {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        #skor { font-size: 24px; color: #ccc; font-weight: bold; }
+        
+        #zaman-kutusu { 
+            width: 100%; 
+            height: 20px; 
+            background: #444; 
+            border-radius: 10px;
+            overflow: hidden; 
+            margin-bottom: 25px; 
+        }
+
+        #zaman-bari { 
+            width: 100%; 
+            height: 100%; 
+            background: #00ffcc; 
+            transition: width 0.03s linear, background-color 0.3s; 
+        }
+
+        #soru { 
+            font-size: 14vw; /* Ekran genişliğine göre dinamik yazı boyutu */
+            max-font-size: 64px;
+            font-weight: bold; 
+            margin: 30px 0; 
+            letter-spacing: 2px; 
+            text-align: center;
+        }
+
+        /* 64px max font size için medya sorgusu */
+        @media (min-width: 500px) {
+            #soru { font-size: 64px; }
+        }
+
+        #secenekler { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 15px; 
+            justify-content: space-between;
+        }
+
+        .buton { 
+            width: calc(50% - 7.5px); /* İki sütun arası 15px boşluğu hesaba katarak tam ortala */
+            padding: 25px 0; 
+            font-size: 32px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            background: #333; 
+            color: white; 
+            border: 2px solid #555; 
+            border-radius: 10px; 
+            transition: 0.1s; 
+        }
+
+        .buton:active { 
+            background: #00ffcc; 
+            color: #000; 
+            transform: scale(0.95); /* Dokunma hissi için hafif küçülme */
+        }
+
+        #mesaj { 
+            font-size: 22px; 
+            font-weight: bold; 
+            margin-top: 25px; 
+            height: 30px; 
+            color: #ff3333; 
+            text-align: center;
+        }
+
+        #basla-btn { 
+            width: 100%;
+            padding: 20px 30px; 
+            font-size: 24px; 
+            cursor: pointer; 
+            background: #00ffcc; 
+            border: none; 
+            border-radius: 10px; 
+            color: #000; 
+            font-weight: bold; 
+            margin-top: 20px; 
+            text-transform: uppercase; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="oyun-alani">
+    <div id="skor-kutusu">
+        <span style="color: #666; font-weight: bold;">REFLEKS</span>
+        <div id="skor">SKOR: <span id="skor-deger">0</span></div>
+    </div>
+    
+    <div id="zaman-kutusu"><div id="zaman-bari"></div></div>
+    <div id="soru">BAŞLA</div>
+    
+    <div id="secenekler" style="display: none;">
+        <!-- onmousedown eklendi: mobildeki 300ms tıklama gecikmesini atlamak için -->
+        <button class="buton" onpointerdown="cevapKontrol(0)" id="btn0"></button>
+        <button class="buton" onpointerdown="cevapKontrol(1)" id="btn1"></button>
+        <button class="buton" onpointerdown="cevapKontrol(2)" id="btn2"></button>
+        <button class="buton" onpointerdown="cevapKontrol(3)" id="btn3"></button>
+    </div>
+
+    <div id="mesaj"></div>
+    <button id="basla-btn" onpointerdown="oyunuBaslat()">Başla</button>
+</div>
+
+<script>
+    let skor = 0;
+    let zamanMax = 3000; 
+    let zamanKalan = 3000; 
+    let dogruCevap = 0;
+    let oyunDongusu;
+    let sonSaniye = Date.now();
+    let oyunAktif = false; // Çift tıklama hatalarını önlemek için
+
+    const carpanHavuzu = [2,2, 3,3, 4,4, 5, 6,6, 7,7, 8,8, 9,9]; 
+
+    function rastgeleCarpan() {
+        return carpanHavuzu[Math.floor(Math.random() * carpanHavuzu.length)];
+    }
+
+    function oyunuBaslat() {
+        if(oyunAktif) return;
+        oyunAktif = true;
+        skor = 0;
+        document.getElementById('skor-deger').innerText = skor;
+        document.getElementById('basla-btn').style.display = 'none';
+        document.getElementById('secenekler').style.display = 'flex';
+        document.getElementById('mesaj').innerText = "";
+        
+        yeniSoru();
+        clearInterval(oyunDongusu);
+        sonSaniye = Date.now();
+        oyunDongusu = setInterval(zamanGuncelle, 30); 
+    }
+
+    function zamanGuncelle() {
+        if(!oyunAktif) return;
+        
+        let simdi = Date.now();
+        let gecenFark = simdi - sonSaniye;
+        sonSaniye = simdi;
+        
+        zamanKalan -= gecenFark;
+        
+        let yuzde = (zamanKalan / zamanMax) * 100;
+        let bar = document.getElementById('zaman-bari');
+        bar.style.width = Math.max(0, yuzde) + "%";
+        
+        if (yuzde > 50) bar.style.background = "#00ffcc";
+        else if (yuzde > 25) bar.style.background = "#ff9900";
+        else bar.style.background = "#ff3333";
+
+        if (zamanKalan <= 0) {
+            oyunBitti("Süre Bitti!");
+        }
+    }
+
+    function yeniSoru() {
+        zamanKalan = zamanMax; 
+        sonSaniye = Date.now(); 
+
+        let c1 = rastgeleCarpan();
+        let c2 = rastgeleCarpan();
+        dogruCevap = c1 * c2;
+
+        document.getElementById('soru').innerText = `${c1} x ${c2}`;
+
+        let secenekler = [dogruCevap];
+        
+        while (secenekler.length < 4) {
+            let tuzakTipleri = [
+                dogruCevap + c1, 
+                dogruCevap - c2, 
+                dogruCevap + 10, 
+                dogruCevap - 10, 
+                (c1 + 1) * c2,
+                c1 * (c2 - 1)
+            ];
+            
+            let rastgeleTuzak = tuzakTipleri[Math.floor(Math.random() * tuzakTipleri.length)];
+            
+            if (rastgeleTuzak <= 0 || secenekler.includes(rastgeleTuzak)) {
+                rastgeleTuzak = dogruCevap + (Math.floor(Math.random() * 10) - 5);
+            }
+            
+            if (rastgeleTuzak > 0 && !secenekler.includes(rastgeleTuzak)) {
+                secenekler.push(rastgeleTuzak);
+            }
+        }
+        
+        secenekler.sort(() => Math.random() - 0.5);
+
+        for (let i = 0; i < 4; i++) {
+            document.getElementById(`btn${i}`).innerText = secenekler[i];
+        }
+    }
+
+    function cevapKontrol(index) {
+        if(!oyunAktif) return;
+        
+        let secim = parseInt(document.getElementById(`btn${index}`).innerText);
+        if (secim === dogruCevap) {
+            skor++;
+            document.getElementById('skor-deger').innerText = skor;
+            yeniSoru();
+        } else {
+            oyunBitti("Yanlış Cevap!");
+        }
+    }
+
+    function oyunBitti(sebep) {
+        oyunAktif = false;
+        clearInterval(oyunDongusu);
+        document.getElementById('soru').innerText = sebep;
+        document.getElementById('zaman-bari').style.width = "0%";
+        document.getElementById('secenekler').style.display = 'none';
+        document.getElementById('basla-btn').style.display = 'block';
+        document.getElementById('basla-btn').innerText = "Tekrar Dene";
+        document.getElementById('mesaj').innerText = `Skorun: ${skor}`;
+    }
+</script>
+
+</body>
+</html>
